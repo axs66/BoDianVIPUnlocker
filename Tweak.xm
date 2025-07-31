@@ -35,7 +35,17 @@
                 NSDictionary *replacements = @{
                     @"isVip\":\\s*\\d+" : @"isVip\":1",
                     @"vipType\":\\s*\\d+" : @"vipType\":1",
-                    // ... 其他所有原始替换规则 ...
+                    @"payVipType\":\\s*\\d+" : @"payVipType\":1",
+                    @"expireDate\":\\s*\\d+" : @"expireDate\":31587551944000",
+                    @"payExpireDate\":\\s*\\d+" : @"payExpireDate\":31587551944000",
+                    @"ctExpireDate\":\\s*\\d+" : @"ctExpireDate\":31587551944000",
+                    @"actExpireDate\":\\s*\\d+" : @"actExpireDate\":31587551944000",
+                    @"bigExpireDate\":\\s*\\d+" : @"bigExpireDate\":31587551944000",
+                    @"nickname\":\\s*\".*?\"" : @"nickname\":\"破解技术支持\"",
+                    @"lowPriceText\":\\s*\".*?\"" : @"lowPriceText\":\"永久会员已激活\"",
+                    @"text\":\\s*\".*?\"" : @"text\":\"永久会员已激活\"",
+                    @"fristVipBtnText\":\\s*\".*?\"" : @"fristVipBtnText\":\"永久会员已激活\"",
+                    @"zcTips\":\\s*\".*?\"" : @"zcTips\":\"高品质MP3格式，下载后永久拥有\""
                 };
                 
                 for (NSString *pattern in replacements) {
