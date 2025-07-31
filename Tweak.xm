@@ -11,15 +11,13 @@
     if ([urlStr containsString:@"pgdt.gtimg.cn"] || [urlStr containsString:@"img4.kuwo.cn"]) {
         NSLog(@"🛑 拦截开屏广告请求: %@", urlStr);
 
-        // 返回空响应
         NSData *emptyData = [NSData data];
         NSURLResponse *fakeResponse = [[NSURLResponse alloc] initWithURL:request.URL
                                                                 MIMEType:@"image/png"
                                                    expectedContentLength:0
                                                         textEncodingName:nil];
-
         completionHandler(emptyData, fakeResponse, nil);
-        return nil; // 阻止原始请求
+        return nil;
     }
 
     // ✅ 拦截会员 JSON 字段并伪造
@@ -61,9 +59,8 @@
             }
         }
 
-        // 默认返回
         completionHandler(data, response, error);
-    }); // ←←← 注意这个括号是补上的
+    }); // ← ← ← 这个 `);` 是必须的！很多人漏了它
 }
 
 %end
