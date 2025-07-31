@@ -63,7 +63,7 @@
 
         // 默认返回
         completionHandler(data, response, error);
-    });
+    }); // ✅ ←←← 这里原本缺失了闭合括号
 }
 
 %end
