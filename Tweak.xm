@@ -7,7 +7,7 @@
 {
     NSString *urlStr = request.URL.absoluteString;
     
-    // 1. 广告拦截（完全保留原始逻辑）
+    // 1. 广告拦截
     if ([urlStr containsString:@"pgdt.gtimg.cn"] || [urlStr containsString:@"img4.kuwo.cn"]) {
         NSLog(@"🛑 拦截广告: %@", urlStr);
         NSData *emptyData = [NSData data];
@@ -19,10 +19,9 @@
         return nil;
     }
     
-    // 2. 定义修改后的回调（关键修复：避免嵌套 %orig）
+    // 2. 定义修改后的回调
     void (^modifiedHandler)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
         if (data && [response.MIMEType containsString:@"application/json"]) {
-            // 保留原始编码处理
             NSStringEncoding encoding = NSUTF8StringEncoding;
             if (response.textEncodingName) {
                 CFStringRef cfEncoding = (__bridge CFStringRef)response.textEncodingName;
@@ -31,7 +30,7 @@
             
             NSString *body = [[NSString alloc] initWithData:data encoding:encoding];
             if (body) {
-                // 完全保留原始正则替换逻辑
+                // 完整的替换规则字典
                 NSDictionary *replacements = @{
                     @"isVip\":\\s*\\d+" : @"isVip\":1",
                     @"vipType\":\\s*\\d+" : @"vipType\":1",
@@ -48,16 +47,18 @@
                     @"zcTips\":\\s*\".*?\"" : @"zcTips\":\"高品质MP3格式，下载后永久拥有\""
                 };
                 
+                // 执行所有正则替换
                 for (NSString *pattern in replacements) {
-                    NSError *regexError;
-                    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
-                                                                                         options:0
-                                                                                           error:&regexError];
-                    if (!regexError) {
-                        body = [regex stringByReplacingMatchesInString:body
-                                                            options:0
-                                                              range:NSMakeRange(0, body.length)
-                                                       withTemplate:replacements[pattern]];
+                    @autoreleasepool {
+                        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
+                                                                                            options:0
+                                                                                              error:nil];
+                        if (regex) {
+                            body = [regex stringByReplacingMatchesInString:body
+                                                                options:0
+                                                                  range:NSMakeRange(0, body.length)
+                                                           withTemplate:replacements[pattern]];
+                        }
                     }
                 }
                 
@@ -69,7 +70,7 @@
         originalHandler(data, response, error);
     };
     
-    // 3. 调用原始方法（关键修复：使用预定义的Block变量）
+    // 3. 调用原始方法
     return %orig(request, modifiedHandler);
 }
 
