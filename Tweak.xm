@@ -9,69 +9,92 @@
     
     // 1. 广告拦截
     if ([urlStr containsString:@"pgdt.gtimg.cn"] || [urlStr containsString:@"img4.kuwo.cn"]) {
-        NSLog(@"🛑 拦截广告: %@", urlStr);
         NSData *emptyData = [NSData data];
         NSURLResponse *fakeResponse = [[NSURLResponse alloc] initWithURL:request.URL
                                                               MIMEType:@"image/png"
                                                  expectedContentLength:0
                                                       textEncodingName:nil];
-        originalHandler(emptyData, fakeResponse, nil);
+        // 确保在主线程回调
+        dispatch_async(dispatch_get_main_queue(), ^{
+            originalHandler(emptyData, fakeResponse, nil);
+        });
         return nil;
     }
     
-    // 2. 定义修改后的回调
+    // 2. 安全处理JSON修改
     void (^modifiedHandler)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (data && [response.MIMEType containsString:@"application/json"]) {
-            NSStringEncoding encoding = NSUTF8StringEncoding;
-            if (response.textEncodingName) {
-                CFStringRef cfEncoding = (__bridge CFStringRef)response.textEncodingName;
-                encoding = CFStringConvertEncodingToNSStringEncoding(CFStringConvertIANACharSetNameToEncoding(cfEncoding));
-            }
-            
-            NSString *body = [[NSString alloc] initWithData:data encoding:encoding];
-            if (body) {
-                // 完整的替换规则字典
-                NSDictionary *replacements = @{
-                    @"isVip\":\\s*\\d+" : @"isVip\":1",
-                    @"vipType\":\\s*\\d+" : @"vipType\":1",
-                    @"payVipType\":\\s*\\d+" : @"payVipType\":1",
-                    @"expireDate\":\\s*\\d+" : @"expireDate\":31587551944000",
-                    @"payExpireDate\":\\s*\\d+" : @"payExpireDate\":31587551944000",
-                    @"ctExpireDate\":\\s*\\d+" : @"ctExpireDate\":31587551944000",
-                    @"actExpireDate\":\\s*\\d+" : @"actExpireDate\":31587551944000",
-                    @"bigExpireDate\":\\s*\\d+" : @"bigExpireDate\":31587551944000",
-                    @"nickname\":\\s*\".*?\"" : @"nickname\":\"破解技术支持\"",
-                    @"lowPriceText\":\\s*\".*?\"" : @"lowPriceText\":\"永久会员已激活\"",
-                    @"text\":\\s*\".*?\"" : @"text\":\"永久会员已激活\"",
-                    @"fristVipBtnText\":\\s*\".*?\"" : @"fristVipBtnText\":\"永久会员已激活\"",
-                    @"zcTips\":\\s*\".*?\"" : @"zcTips\":\"高品质MP3格式，下载后永久拥有\""
-                };
-                
-                // 执行所有正则替换
-                for (NSString *pattern in replacements) {
-                    @autoreleasepool {
-                        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
-                                                                                            options:0
-                                                                                              error:nil];
-                        if (regex) {
-                            body = [regex stringByReplacingMatchesInString:body
-                                                                options:0
-                                                                  range:NSMakeRange(0, body.length)
-                                                           withTemplate:replacements[pattern]];
-                        }
-                    }
-                }
-                
-                NSData *modifiedData = [body dataUsingEncoding:encoding];
-                originalHandler(modifiedData, response, error);
+        @autoreleasepool {
+            if (!data || error) {
+                originalHandler(data, response, error);
                 return;
             }
+            
+            // 仅处理application/json
+            if ([response.MIMEType containsString:@"application/json"]) {
+                NSError *jsonError;
+                NSMutableDictionary *jsonDict = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingMutableContainers error:&jsonError];
+                
+                if (!jsonError && jsonDict) {
+                    // 直接修改字典避免正则风险
+                    [self safeModifyVIPInfo:jsonDict];
+                    
+                    // 重新序列化
+                    NSData *modifiedData = [NSJSONSerialization dataWithJSONObject:jsonDict options:0 error:nil];
+                    if (modifiedData) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            originalHandler(modifiedData, response, error);
+                        });
+                        return;
+                    }
+                }
+            }
+            
+            // 原始数据回调
+            dispatch_async(dispatch_get_main_queue(), ^{
+                originalHandler(data, response, error);
+            });
         }
-        originalHandler(data, response, error);
     };
     
-    // 3. 调用原始方法
     return %orig(request, modifiedHandler);
+}
+
+// 安全修改VIP字段（避免正则）
+- (void)safeModifyVIPInfo:(NSMutableDictionary *)dict {
+    // 数值型字段
+    NSArray *numericKeys = @[@"isVip", @"vipType", @"payVipType", 
+                           @"expireDate", @"payExpireDate", 
+                           @"ctExpireDate", @"actExpireDate", @"bigExpireDate"];
+    
+    for (NSString *key in numericKeys) {
+        if (dict[key]) {
+            [dict setValue:@1 forKey:key]; // 所有状态设为1
+        }
+    }
+    
+    // 特殊长整型字段
+    NSNumber *longDate = @31587551944000; // 3022年
+    NSArray *dateKeys = @[@"expireDate", @"payExpireDate", @"ctExpireDate", @"actExpireDate", @"bigExpireDate"];
+    for (NSString *key in dateKeys) {
+        if (dict[key]) {
+            [dict setValue:longDate forKey:key];
+        }
+    }
+    
+    // 字符串字段
+    NSDictionary *stringValues = @{
+        @"nickname": @"破解技术支持",
+        @"lowPriceText": @"永久会员已激活",
+        @"text": @"永久会员已激活",
+        @"fristVipBtnText": @"永久会员已激活",
+        @"zcTips": @"高品质MP3格式，下载后永久拥有"
+    };
+    
+    [stringValues enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *value, BOOL *stop) {
+        if (dict[key]) {
+            [dict setValue:value forKey:key];
+        }
+    }];
 }
 
 %end
