@@ -1,0 +1,10 @@
+Package: com.axs.bodianvip
+Name: BoDianVIPUnlocker
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: 解锁波点音乐大会员（越狱插件）
+Maintainer: Axs
+Author: Axs
+Depends: firmware (>= 13.0)
+Section: Tweaks
+Tag: security
