@@ -22,45 +22,38 @@
 
     // ✅ 拦截会员 JSON 字段并伪造
     return %orig(request, ^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (data && [response.MIMEType containsString:@"application/json"]) {
-            NSString *body = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-
-            if (body) {
-                NSDictionary<NSString *, NSString *> *replacements = @{
-                    @"isVip\":\\d+": @"isVip\":1",
-                    @"vipType\":\\d+": @"vipType\":1",
-                    @"payVipType\":\\d+": @"payVipType\":1",
-                    @"expireDate\":\\d+": @"expireDate\":31587551944000",
-                    @"payExpireDate\":\\d+": @"payExpireDate\":31587551944000",
-                    @"ctExpireDate\":\\d+": @"ctExpireDate\":31587551944000",
-                    @"actExpireDate\":\\d+": @"actExpireDate\":31587551944000",
-                    @"bigExpireDate\":\\d+": @"bigExpireDate\":31587551944000",
-                    @"nickname\":\".*?\"": @"nickname\":\"Axs技术支持\"",
-                    @"lowPriceText\":\".*?\"": @"lowPriceText\":\"Axs提供会员服务\"",
-                    @"text\":\".*?\"": @"text\":\"Axs提供会员服务\"",
-                    @"fristVipBtnText\":\".*?\"": @"fristVipBtnText\":\"Axs提供会员服务\"",
-                    @"zcTips\":\".*?\"": @"zcTips\":\"高品质MP3格式，下载后永久拥有。波点大会员每月获赠99999999999999998张珍藏下载券（永久有效，无限累积）\""
-                };
-
-                for (NSString *pattern in replacements) {
-                    NSError *regexError = nil;
-                    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:&regexError];
-                    if (!regexError) {
-                        body = [regex stringByReplacingMatchesInString:body
-                                                                options:0
-                                                                  range:NSMakeRange(0, body.length)
-                                                           withTemplate:replacements[pattern]];
-                    }
-                }
-
-                NSData *modifiedData = [body dataUsingEncoding:NSUTF8StringEncoding];
-                completionHandler(modifiedData, response, error);
-                return;
-            }
+    if (data && [response.MIMEType containsString:@"application/json"]) {
+        // 动态获取编码
+        NSStringEncoding encoding = NSUTF8StringEncoding;
+        if (response.textEncodingName) {
+            CFStringRef cfEncoding = (__bridge CFStringRef)response.textEncodingName;
+            encoding = CFStringConvertEncodingToNSStringEncoding(CFStringConvertIANACharSetNameToEncoding(cfEncoding));
         }
-
-        completionHandler(data, response, error);
-    }); // ← ← ← 这个 `);` 是必须的！很多人漏了它
-}
-
-%end
+        
+        NSString *body = [[NSString alloc] initWithData:data encoding:encoding];
+        if (body) {
+            // 修复后的正则字典（包含 \s* 匹配空格）
+            NSDictionary<NSString *, NSString *> *replacements = @{ /* 修正后的键值对 */ };
+            
+            for (NSString *pattern in replacements) {
+                NSError *regexError;
+                NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
+                                                                                     options:0
+                                                                                       error:&regexError];
+                if (!regex) {
+                    NSLog(@"正则错误: %@", regexError);
+                    continue;
+                }
+                body = [regex stringByReplacingMatchesInString:body
+                                                        options:0
+                                                          range:NSMakeRange(0, body.length)
+                                                   withTemplate:replacements[pattern]];
+            }
+            
+            NSData *modifiedData = [body dataUsingEncoding:encoding];
+            completionHandler(modifiedData, response, error);
+            return;
+        }
+    }
+    completionHandler(data, response, error);
+});
